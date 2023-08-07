@@ -1,5 +1,8 @@
+import open3d as o3d
 import open3d.visualization.gui as gui
 import open3d.visualization.rendering as rendering
+
+import random # testing visualiser
 
 from measurement_manager import MeasurementManager
 
@@ -23,7 +26,7 @@ class PosturalIndexWindow():
         # A list of measurements
         measurement_list_view = gui.ListView()
         measurement_list_view.set_items(self._measurement_manager.get_measurement_names())
-        measurement_list_view.selected_index = measurement_list_view.selected_index + 1  # initially is -1, so now 1
+        # measurement_list_view.selected_index = measurement_list_view.selected_index + 1  # initially is -1, so now 1
         measurement_list_view.set_max_visible_items(10)
         measurement_list_view.set_on_selection_changed(self._on_select_measurement)
         measurement_collapsable.add_child(measurement_list_view)
@@ -36,6 +39,8 @@ class PosturalIndexWindow():
         w.add_child(self._scene)
         w.add_child(self._settings_panel)
 
+        print("initialised")
+
 
     # Callback to set the layout of the windows direct children
     # See: http://www.open3d.org/docs/release/python_example/visualization/index.html#vis-gui-py
@@ -47,8 +52,31 @@ class PosturalIndexWindow():
         self._settings_panel.frame = gui.Rect(r.get_right() - width, r.y, width, height)
 
 
-    def _on_select_measurement(self):
-        pass
+    def _on_select_measurement(self, new_val: str, _: bool) -> None:
+        self._selected_measurement = self._load_mesh(new_val)
+        self._scene.scene.clear_geometry()
+        print(self._selected_measurement)
+        try:
+            mat = rendering.MaterialRecord()
+            mat.base_color = [
+                random.random(),
+                random.random(),
+                random.random(), 1.0
+            ]
+            mat.shader = "defaultUnlit"
+            self._scene.scene.add_geometry("__model__", self._selected_measurement, mat)
+            print(self._scene)
+        except Exception as e:
+            print(e)
+
+
+    def _load_mesh(self, measurement: str) -> o3d.geometry.TriangleMesh:
+        cbm_measurement = self._measurement_manager.create_cbm_measurement(measurement)
+        mesh = o3d.t.geometry.TriangleMesh(cbm_measurement.V, cbm_measurement.T)
+        mesh.triangle.normals = cbm_measurement.N
+        mesh.compute_vertex_normals()
+        mesh.normalize_normals()
+        return mesh.to_legacy()
 
 def main():
     # Setup the measurement specific stuff
@@ -56,6 +84,7 @@ def main():
     measurement_manager = MeasurementManager()
 
     # Initialise the application
+    o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Debug)
     gui.Application.instance.initialize()
 
     # Setup the window
