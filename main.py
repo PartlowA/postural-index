@@ -10,6 +10,8 @@ class PosturalIndexWindow():
     def __init__(self, window_title: str, width: int, height: int, measurement_manager: MeasurementManager) -> None:
         self._window = gui.Application.instance.create_window(window_title, width, height)
         self._measurement_manager = measurement_manager
+        self._interpolation_iterations = int(0)
+        self._selected_measurement = None
 
         w = self._window
 
@@ -31,6 +33,17 @@ class PosturalIndexWindow():
         measurement_list_view.set_on_selection_changed(self._on_select_measurement)
         measurement_collapsable.add_child(measurement_list_view)
 
+        # Interpolation iterations
+        interpolation_nedit = gui.NumberEdit(gui.NumberEdit.INT)
+        interpolation_nedit.int_value = self._interpolation_iterations
+        interpolation_nedit.set_limits(0, 5)  # value coerced to 1
+        interpolation_nedit.set_on_value_changed(self._on_interpolation_value_changed)
+        interpolation_layout = gui.Horiz()
+        interpolation_layout.add_child(gui.Label("Interpolation iterations:"))
+        interpolation_layout.add_fixed(em)
+        interpolation_layout.add_child(interpolation_nedit)
+        measurement_collapsable.add_child(interpolation_layout)
+
         # Add section to side panel
         self._settings_panel.add_child(measurement_collapsable)
 
@@ -47,27 +60,18 @@ class PosturalIndexWindow():
     def _on_layout(self, layout_context):
         r = self._window.content_rect
         self._scene.frame = r
-        width = 17 * layout_context.theme.font_size
+        width = 20 * layout_context.theme.font_size
         height = min(r.height, self._settings_panel.calc_preferred_size(layout_context, gui.Widget.Constraints()).height)
         self._settings_panel.frame = gui.Rect(r.get_right() - width, r.y, width, height)
+
+    def _on_interpolation_value_changed(self, new_val):
+        self._interpolation_iterations = new_val
+        self._draw_measurement()
 
 
     def _on_select_measurement(self, new_val: str, _: bool) -> None:
         self._selected_measurement = self._load_mesh(new_val)
-        self._scene.scene.clear_geometry()
-        print(self._selected_measurement)
-        try:
-            mat = rendering.MaterialRecord()
-            mat.base_color = [
-                random.random(),
-                random.random(),
-                random.random(), 1.0
-            ]
-            mat.shader = "defaultUnlit"
-            self._scene.scene.add_geometry("__model__", self._selected_measurement, mat)
-            print(self._scene)
-        except Exception as e:
-            print(e)
+        self._draw_measurement()
 
 
     def _load_mesh(self, measurement: str) -> o3d.geometry.TriangleMesh:
@@ -77,6 +81,30 @@ class PosturalIndexWindow():
         mesh.compute_vertex_normals()
         mesh.normalize_normals()
         return mesh.to_legacy()
+    
+    
+    def _draw_measurement(self):
+        if self._selected_measurement == None:
+            return
+        
+        self._scene.scene.clear_geometry()
+        try:
+            mesh = self._selected_measurement.subdivide_loop(number_of_iterations = int(self._interpolation_iterations))
+        except Exception as e:
+            print(e)
+
+        try:
+            mat = rendering.MaterialRecord()
+            mat.base_color = [
+                random.random(),
+                random.random(),
+                random.random(), 1.0
+            ]
+            mat.shader = "defaultUnlit"
+            self._scene.scene.add_geometry("__model__", mesh, mat)
+            print(self._scene)
+        except Exception as e:
+            print(e)
 
 def main():
     # Setup the measurement specific stuff
