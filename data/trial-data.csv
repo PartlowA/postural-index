@@ -1,0 +1,5 @@
+﻿study,centre,participant,number,initials,surname,ref,lhb,posture,review date,date,base,back,angle,pointer,checked,control
+S001,C001,C013,23,,,,,test,,,000031,000032,90,20,,1
+S001,C001,T001,24,,,,,test,,,Empty (Base),Empty (Back),105,31,,0
+S001,C001,T002,25,,,,,test,,,Arrow (Base),Arrow (Back),100,20,,0
+S001,C001,T003,26,,,,,debug,,,Arrow (Base),Arrow (Back),100,30,,0
