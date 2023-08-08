@@ -80,7 +80,7 @@ class MeasurementManager:
         })
 
   
-    def create_cbm_measurement(self, participant):
+    def create_cbm_measurement(self, participant: str):
         record = self._measurement_details.query("participant == @participant").iloc[0]
 
         back, back_info = self.get_dg2_as_matrix(record["back"])
