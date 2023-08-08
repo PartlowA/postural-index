@@ -2,9 +2,13 @@ import open3d as o3d
 import open3d.visualization.gui as gui
 import open3d.visualization.rendering as rendering
 
+from typing import List
+
 import random # testing visualiser
 
 from measurement_manager import MeasurementManager
+from cbm_measurement import CbmMeasurement
+from registration import Registration
 
 class PosturalIndexWindow():
     """
@@ -21,6 +25,14 @@ class PosturalIndexWindow():
         self._show_triangle_mesh: bool = True
         self._triangle_mesh: o3d.geometry.TriangleMesh = None
         self._wireframe_mesh: o3d.geometry.LineSet = None
+
+        # Create the normal measurement
+        # control_measurements = measurement_manager.get_normal_measurements()
+        # self._control_mesh_names: [m.name for m in control_measurements]
+        # self._control_triangle_meshes: [self._cbm_to_triangle_mesh(m) for m in control_measurements]
+        # self._control_wireframe_meshes: 
+        # self._normal_triangle_mesh: o3d.geometry.TriangleMesh = self._create_normal_measurement()
+        # self._normal_wireframe_mesh: o3d.geometry.LineSet = None
 
         self._scene = gui.SceneWidget()
         self._scene.scene = rendering.Open3DScene(self._window.renderer)
@@ -75,75 +87,75 @@ class PosturalIndexWindow():
 
 
     def _on_show_wireframe_value_changed(self, is_checked):
-        try:
-            self._show_wireframe_mesh = is_checked
-            self._add_geometry_to_scene()
-        except Exception as e:
-            print(e)
+        self._show_wireframe_mesh = is_checked
+        self._add_geometry_to_scene()
+
 
     def _on_interpolation_value_changed(self, new_val):
         self._interpolation_iterations = int(new_val)
-        self._load_triangle_mesh()
-        self._load_wireframe_mesh()
+        self._load_cbm_measurement()
         self._add_geometry_to_scene()
 
 
     def _on_select_measurement(self, new_val: str, _: bool) -> None:
-        if self._selected_measurement == new_val: return        
+        if self._selected_measurement == new_val:
+            return
+        
         self._selected_measurement = new_val
-        self._load_triangle_mesh()
-        self._load_wireframe_mesh()
+        self._load_cbm_measurement()
         self._add_geometry_to_scene()
+
+
+    def _load_cbm_measurement(self):
+        cbm_measurement = self._measurement_manager.create_cbm_measurement(self._selected_measurement)
+        self._triangle_mesh = load_triangle_mesh(cbm_measurement, self._interpolation_iterations)
+        self._wireframe_mesh = load_wireframe_mesh(self._triangle_mesh)
 
 
     def _add_geometry_to_scene(self) -> None:
         self._scene.scene.clear_geometry()
-        if self._show_triangle_mesh: self._add_triangle_mesh_to_scene()
-        if self._show_wireframe_mesh: self._add_wireframe_mesh_to_scene()
 
+        if self._show_triangle_mesh:
+            mat = rendering.MaterialRecord()
+            mat.shader = "defaultLit"
+            mat.base_color = [random.random(), random.random(), random.random(), 1.0]
+            self._add_model_to_scene(
+                f"{self._selected_measurement}-mesh",
+                self._triangle_mesh,
+                mat
+            )
 
+        if self._show_wireframe_mesh:
+            mat = rendering.MaterialRecord()
+            mat.shader = "unlitLine"
+            mat.line_width = 2
+            mat.base_color = [1.0, 1.0, 1.0, 1.0]
+            mat.emissive_color = [1.0, 1.0, 1.0, 1.0]
+            self._add_model_to_scene(
+                f"{self._selected_measurement}-wireframe",
+                self._wireframe_mesh,
+                mat
+            )
 
-    def _load_triangle_mesh(self) -> None:
-        cbm_measurement = self._measurement_manager.create_cbm_measurement(self._selected_measurement)
-        mesh = o3d.t.geometry.TriangleMesh(cbm_measurement.V, cbm_measurement.T)
-        mesh.triangle.normals = cbm_measurement.N
-        mesh.compute_vertex_normals()
-        mesh.normalize_normals()
-        mesh = mesh.to_legacy()
-        mesh = mesh.subdivide_loop(number_of_iterations = self._interpolation_iterations)
-        self._triangle_mesh = mesh
     
-    def _load_wireframe_mesh(self) -> None:
-        self._wireframe_mesh = o3d.geometry.LineSet.create_from_triangle_mesh(self._triangle_mesh)    
+    def _add_model_to_scene(self, name: str, model, material: rendering.MaterialRecord):
+        if model == None:
+            return
+                
+        self._scene.scene.add_geometry(name, model, material)
+
+def load_triangle_mesh(cbm_measurement: CbmMeasurement, interpolation_iterations: int) -> None:
+    mesh = o3d.t.geometry.TriangleMesh(cbm_measurement.V, cbm_measurement.T)
+    mesh.triangle.normals = cbm_measurement.N
+    mesh.compute_vertex_normals()
+    mesh.normalize_normals()
+    mesh = mesh.to_legacy()
+    mesh = mesh.subdivide_loop(number_of_iterations = interpolation_iterations)
+    return mesh
     
-    def _add_triangle_mesh_to_scene(self):
-        if self._triangle_mesh == None:
-            return
-        
-        mat = rendering.MaterialRecord()
-        mat.base_color = [
-            random.random(),
-            random.random(),
-            random.random(), 1.0
-        ]
-        mat.shader = "defaultLit"
-        self._scene.scene.add_geometry("__model__", self._triangle_mesh, mat)
-
-
-
-    def _add_wireframe_mesh_to_scene(self):
-        if self._wireframe_mesh == None:
-            return
-        
-        mat = rendering.MaterialRecord()
-        mat.base_color = [
-            random.random(),
-            random.random(),
-            random.random(), 1.0
-        ]
-        mat.shader = "defaultLit"
-        self._scene.scene.add_geometry("__wireframe", self._wireframe_mesh, mat)
-
+def load_wireframe_mesh(triangle_mesh) -> None:
+    wireframe_mesh = o3d.geometry.LineSet.create_from_triangle_mesh(triangle_mesh)  
+    return wireframe_mesh
 
 def main():
     # Setup the measurement specific stuff
