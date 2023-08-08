@@ -27,13 +27,15 @@ class PosturalIndexWindow():
         self._wireframe_mesh: o3d.geometry.LineSet = None
 
         # Create the normal measurement
-        # control_measurements = measurement_manager.get_normal_measurements()
-        # self._control_mesh_names: [m.name for m in control_measurements]
-        # self._control_triangle_meshes: [self._cbm_to_triangle_mesh(m) for m in control_measurements]
-        # self._control_wireframe_meshes: 
-        # self._normal_triangle_mesh: o3d.geometry.TriangleMesh = self._create_normal_measurement()
-        # self._normal_wireframe_mesh: o3d.geometry.LineSet = None
-
+        control_measurements = measurement_manager.get_normal_measurements()
+        self._control_mesh_names = [m.name for m in control_measurements]
+        self._control_triangle_meshes = [load_triangle_mesh(m) for m in control_measurements]
+        self._control_wireframe_meshes = [load_wireframe_mesh(m) for m in self._control_triangle_meshes]
+        registered_controls = Registration.register(self._control_triangle_meshes, "affine")
+        self._normal_triangle_mesh = o3d.geometry.TriangleMesh = Registration.calculate_average_mesh(registered_controls)
+        self._normal_wireframe_mesh = o3d.geometry.LineSet = load_wireframe_mesh(self._normal_triangle_mesh)
+        
+        # Setup GUI
         self._scene = gui.SceneWidget()
         self._scene.scene = rendering.Open3DScene(self._window.renderer)
 
@@ -88,7 +90,7 @@ class PosturalIndexWindow():
 
     def _on_show_wireframe_value_changed(self, is_checked):
         self._show_wireframe_mesh = is_checked
-        self._add_geometry_to_scene()
+        self._scene.scene.show_geometry(f"{self._selected_measurement}-wireframe", is_checked)
 
 
     def _on_interpolation_value_changed(self, new_val):
@@ -125,17 +127,27 @@ class PosturalIndexWindow():
                 mat
             )
 
-        if self._show_wireframe_mesh:
-            mat = rendering.MaterialRecord()
-            mat.shader = "unlitLine"
-            mat.line_width = 2
-            mat.base_color = [1.0, 1.0, 1.0, 1.0]
-            mat.emissive_color = [1.0, 1.0, 1.0, 1.0]
-            self._add_model_to_scene(
-                f"{self._selected_measurement}-wireframe",
-                self._wireframe_mesh,
-                mat
-            )
+        mat = rendering.MaterialRecord()
+        mat.shader = "unlitLine"
+        mat.line_width = 2
+        mat.base_color = [1.0, 1.0, 1.0, 1.0]
+        mat.emissive_color = [1.0, 1.0, 1.0, 1.0]
+        self._add_model_to_scene(
+            f"{self._selected_measurement}-wireframe",
+            self._wireframe_mesh,
+            mat
+        )
+
+        mat = rendering.MaterialRecord()
+        mat.shader = "defaultLit"
+        mat.line_width = 2
+        mat.base_color = [1.0, 0.0, 0.0, 1.0]
+        self._add_model_to_scene(
+            "Normal",
+            self._normal_triangle_mesh,
+            mat
+        )
+        
 
     
     def _add_model_to_scene(self, name: str, model, material: rendering.MaterialRecord):
@@ -144,7 +156,7 @@ class PosturalIndexWindow():
                 
         self._scene.scene.add_geometry(name, model, material)
 
-def load_triangle_mesh(cbm_measurement: CbmMeasurement, interpolation_iterations: int) -> None:
+def load_triangle_mesh(cbm_measurement: CbmMeasurement, interpolation_iterations: int = 0) -> None:
     mesh = o3d.t.geometry.TriangleMesh(cbm_measurement.V, cbm_measurement.T)
     mesh.triangle.normals = cbm_measurement.N
     mesh.compute_vertex_normals()
@@ -156,6 +168,8 @@ def load_triangle_mesh(cbm_measurement: CbmMeasurement, interpolation_iterations
 def load_wireframe_mesh(triangle_mesh) -> None:
     wireframe_mesh = o3d.geometry.LineSet.create_from_triangle_mesh(triangle_mesh)  
     return wireframe_mesh
+
+
 
 def main():
     # Setup the measurement specific stuff

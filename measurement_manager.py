@@ -90,6 +90,10 @@ class MeasurementManager:
 
         return cbm_measurement
     
+    def get_normal_measurements(self) -> List[CbmMeasurement]:
+        records = self._measurement_details.query("control == True")
+        cbm_measurements = [self.create_cbm_measurement(row["participant"]) for _, row in records.iterrows()]
+        return cbm_measurements
 
     def get_dg2_as_matrix(self, dg2_file):
         """Reads a DG2 file and returns the measurement component as a 10x10 element numpy array.
@@ -182,6 +186,72 @@ class MeasurementManager:
                 A list containing all the participant names.
         """
         return self._measurement_details["participant"]
+    
+    
+    def _create_normal_measurement(self, measurements: List[CbmMeasurement]):
+        """Returns a statistical average mesh from the control measurements.
+        
+        Args:
+            measurements:
+                A list of o3d.geometry.TriangleMesh objects. The first element will be the basis for the construction of the average shape.
+        """
+
+        if len(measurements) == 0:
+            print("There are no control measurements.")
+            return
+        
+        V = np.asarray(measurements[0].vertices)
+        T = np.asarray(measurements[0].triangles)
+
+        if len(measurements) == 1:
+            return V, T
+        
+
+        # Get all the measurements except the first one as point clouds
+        meshes = [np.asarray(M.vertices) for M in measurements[1:]]
+
+        def get_nearest_displacement_vectors(X, Y):
+            vectors = []
+            for v in X:
+                d = np.linalg.norm(v - Y, axis = 1)
+                idx = d.argmin()
+                vector = Y[idx] - v
+                vectors.append(vector)
+            return vectors           
+
+        # Calculate the dispacement vector to the nearest point in each of the meshes
+        displacement_vectors = [get_nearest_displacement_vectors(V, M) for M in meshes]
+
+        # For each point in A calculate the average distance to the nearest point
+        average_displacement_vectors = np.mean(displacement_vectors, axis = 0)
+
+        # Calculate the dispacements for the nearest point in each of the meshes
+        magnitudes = np.linalg.norm(average_displacement_vectors, axis = 1)
+
+#     # Reference for plot    
+#     reference = o3d.t.geometry.TriangleMesh(V, T)
+#     reference = reference.to_legacy()
+
+        # Construct the average mesh
+        TV = V + average_displacement_vectors
+        # average_mesh = o3d.t.geometry.TriangleMesh(TV, T)
+        # norm = mpl.colors.Normalize(np.min(magnitudes), np.max(magnitudes))
+        # cmap = cm.GnBu
+        # m = cm.ScalarMappable(norm = norm, cmap = cmap)
+        # colours = m.to_rgba(magnitudes)
+        # colours = colours[:, 0:3]
+        # average_mesh.vertex.colors = colours
+        # average_mesh = average_mesh.to_legacy()
+
+#     if plot_result:
+#         fig = go.Figure()
+#         add_mesh_to_figure(fig, "Reference Image", reference)
+#         add_mesh_to_figure(fig, "Average Mesh", average_mesh)
+#         camera = dict(up=dict(x=0, y=0, z=1),center=dict(x=0, y=0, z=0),eye=dict(x=1.5, y=-1.5, z=1.5))
+#         fig.update_layout(scene_camera = camera)
+#         fig.show()
+
+        return TV, T
     
 
 def main():
