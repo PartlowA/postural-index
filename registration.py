@@ -12,7 +12,7 @@ from pycpd import AffineRegistration
 
 class Registration():
     @staticmethod
-    def register(measurements: List[o3d.geometry.TriangleMesh], method: str) -> List[o3d.geometry.TriangleMesh]:
+    def register(measurements: List[o3d.geometry.TriangleMesh], method: str, callback = None) -> List[o3d.geometry.TriangleMesh]:
         """Registers a series of point clouds.
 
         The first measurement is used as the imovable point cloud.
@@ -51,19 +51,22 @@ class Registration():
         # Attempt to register each mesh
         for i in range(1, len(measurements)):
             Y = measurements[i]
-            TY = Registration.affine_registration(X, Y)
+            TY = Registration.affine_registration(X, Y, callback)
             # TY_mesh = o3d.t.geometry.TriangleMesh()
             registered.append(TY)    
 
         return registered
 
     @staticmethod
-    def affine_registration(target: o3d.geometry.TriangleMesh, source: o3d.geometry.TriangleMesh) -> o3d.geometry.TriangleMesh:
+    def affine_registration(target: o3d.geometry.TriangleMesh, source: o3d.geometry.TriangleMesh, callback) -> o3d.geometry.TriangleMesh:
         X = np.asarray(target.vertices)
         Y = np.asarray(source.vertices)
         
-        reg = AffineRegistration(X = X, Y = Y)
-        _, (R, t) = reg.register()
+        reg = AffineRegistration(X = X, Y = Y, max_iterations = 1000)
+        if callback is None:
+            _, (R, t) = reg.register()
+        else:
+            _, (R, t) = reg.register(callback)
 
         TY = copy.deepcopy(source)
         TY.rotate(R)
