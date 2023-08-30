@@ -8,7 +8,7 @@ from typing import List
 
 # from pycpd import RigidRegistration
 from pycpd import AffineRegistration
-# from pycpd import DeformableRegistration
+from pycpd import DeformableRegistration
 
 class Registration():
     @staticmethod
@@ -34,6 +34,8 @@ class Registration():
         Raises:
             TypeError:
                 If an element of measurements is of the incorrect type.
+            NameError:
+                If the specified method does not exist.
         """
 
         if len(measurements) == 0:
@@ -51,7 +53,12 @@ class Registration():
         # Attempt to register each mesh
         for i in range(1, len(measurements)):
             Y = measurements[i]
-            TY = Registration.affine_registration(X, Y, callback)
+            if method == "affine":
+                TY = Registration.affine_registration(X, Y, callback)
+            elif method == "soft":
+                TY = Registration.soft_registration(X, Y)
+            else:
+                raise NameError(f"{method} is not a valid registration type.")
             # TY_mesh = o3d.t.geometry.TriangleMesh()
             registered.append(TY)    
 
@@ -74,21 +81,21 @@ class Registration():
 
         return TY
     
-    
-#     def soft_registration(target: o3d.geometry.TriangleMesh, source: o3d.geometry.TriangleMesh):
-#         X = np.asarray(target.vertices)
-#         Y = np.asarray(source.vertices)
-#         Yt = np.asarray(source.triangles)
+    @staticmethod
+    def soft_registration(target: o3d.geometry.TriangleMesh, source: o3d.geometry.TriangleMesh):
+        X = np.asarray(target.vertices)
+        Y = np.asarray(source.vertices)
+        Yt = np.asarray(source.triangles)
         
-#         tradeoff = 0.005
-#         width = 2
+        tradeoff = 0.005
+        width = 2
 
-#         reg = DeformableRegistration(X = X, Y = Y, alpha = tradeoff, beta = width)
-#         TY, (_, _) = reg.register()
+        reg = DeformableRegistration(X = X, Y = Y, alpha = tradeoff, beta = width)
+        TY, (_, _) = reg.register()
 
-#         TY = o3d.t.geometry.TriangleMesh(TY, Yt).to_legacy()
+        TY = o3d.t.geometry.TriangleMesh(TY, Yt).to_legacy()
 
-#         return TY
+        return TY
 
 #     def calculate_vecor_field(initial: o3d.geometry.TriangleMesh, result: o3d.geometry.TriangleMesh):
 #         X = np.asarray(initial.vertices)
@@ -96,6 +103,7 @@ class Registration():
 #         vector_field = X - Y
 #         magnitudes = np.linalg.norm(vector_field, axis = 1)
 #         return vector_field, magnitudes
+
     @staticmethod
     def calculate_average_mesh(measurements: List[o3d.geometry.TriangleMesh]) -> o3d.geometry.TriangleMesh:
         """Returns a statistical average mesh given a list of triangle meshes.

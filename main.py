@@ -40,7 +40,7 @@ class PosturalIndexWindow():
         registered_controls = Registration.register(self._control_triangle_meshes, "affine")
         self._normal_triangle_mesh = o3d.geometry.TriangleMesh = Registration.calculate_average_mesh(registered_controls)
         self._normal_wireframe_mesh = o3d.geometry.LineSet = load_wireframe_mesh(self._normal_triangle_mesh)
-        
+
         # Setup GUI
         self._scene = gui.SceneWidget()
         self._scene.scene = rendering.Open3DScene(self._window.renderer)
@@ -224,9 +224,19 @@ class PosturalIndexWindow():
         except Exception as e:
             print(e)
 
-        
-
-    
+        try:
+            if self._soft_registration_result is not None:
+                mat = rendering.MaterialRecord()
+                mat.shader = "defaultLit"
+                mat.base_color = [random.random(), random.random(), random.random(), 1.0]
+                self._add_model_to_scene(
+                    "Soft Registered",
+                    self._soft_registration_result,
+                    mat
+                )
+        except Exception as e:
+            print(e)  
+            
     def _add_model_to_scene(self, name: str, model, material: rendering.MaterialRecord):
         if model == None:
             return
@@ -240,17 +250,26 @@ class PosturalIndexWindow():
         print("Reset position")
 
     def _on_rigid_register(self) -> None:
-        print("Rigid registration")
         X = self._normal_triangle_mesh
         Y = self._triangle_mesh
-        self._rigid_registration_result = copy.deepcopy(self._triangle_mesh)
-        self._add_geometry_to_scene()
-        # callback = partial(register_callback, scene = self._scene, model_name = "Rigid Registered", source = self._triangle_mesh, window = self._window)
+        #self._rigid_registration_result = copy.deepcopy(self._triangle_mesh)
+        #self._add_geometry_to_scene()
+        #callback = partial(register_callback, scene = self._scene, model_name = "Rigid Registered", source = self._triangle_mesh, window = self._window)
+        # self._rigid_registration_result = Registration.register([X, Y], "affine", callback)[1]
         self._rigid_registration_result = Registration.register([X, Y], "affine")[1]
         self._add_geometry_to_scene()
+        print("Rigid registration complete")
 
     def _on_soft_register(self) -> None:
-        print("Soft registration")
+        
+        try:
+            X = self._normal_triangle_mesh
+            Y = self._rigid_registration_result
+            self._soft_registration_result = Registration.register([X, Y], "soft")[1]
+            self._add_geometry_to_scene()
+        except Exception as e:
+            print(e)  
+        print("Soft registration complete")
 
 def register_callback(iteration, error, X, Y, scene: rendering.Scene, model_name, source, window) -> None:
     try:
@@ -284,8 +303,6 @@ def load_wireframe_mesh(triangle_mesh) -> None:
     wireframe_mesh = o3d.geometry.LineSet.create_from_triangle_mesh(triangle_mesh)  
     return wireframe_mesh
 
-
-
 def main():
     # Setup the measurement specific stuff
     root_folder = "C:\source\Postural Index\CBM Data"
@@ -300,6 +317,8 @@ def main():
 
     # Run event loop
     gui.Application.instance.run()
+
+    # Process all measurements and output graph
 
 if __name__ == "__main__":
     main()
