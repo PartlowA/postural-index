@@ -80,8 +80,11 @@ class MeasurementManager:
         })
 
   
-    def create_cbm_measurement(self, participant: str):
-        record = self._measurement_details.query("participant == @participant").iloc[0]
+    def create_cbm_measurement(self, participant: str, posture: str = ""):
+        if posture == "":
+            record = self._measurement_details.query("participant == @participant").iloc[0]
+        else:
+            record = self._measurement_details.query("participant == @participant and posture == @posture").iloc[0]
 
         back, back_info = self.get_dg2_as_matrix(record["back"])
         base, base_info = self.get_dg2_as_matrix(record["base"])
@@ -175,7 +178,7 @@ class MeasurementManager:
                 break
         return dg2_file
     
-    def get_measurement_names(self) -> List[str]:
+    def get_measurement_names(self) -> pd.DataFrame:
         """Returns a list of measurement names from the measurement_details object.
 
         Args:
@@ -185,7 +188,7 @@ class MeasurementManager:
             names:
                 A list containing all the participant names.
         """
-        return self._measurement_details["participant"]
+        return self._measurement_details.filter(["participant", "posture", "control"])
     
     
     def _create_normal_measurement(self, measurements: List[CbmMeasurement]):

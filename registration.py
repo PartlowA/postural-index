@@ -91,7 +91,7 @@ class Registration():
         width = 2
 
         reg = DeformableRegistration(X = X, Y = Y, alpha = tradeoff, beta = width)
-        TY, (_, _) = reg.register()
+        TY, (G, V) = reg.register()
 
         TY = o3d.t.geometry.TriangleMesh(TY, Yt).to_legacy()
 

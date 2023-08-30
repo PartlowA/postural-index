@@ -1,7 +1,9 @@
 import open3d as o3d
 import open3d.visualization.gui as gui
 import open3d.visualization.rendering as rendering
+import pandas as pd
 import numpy as np
+import plotly.express as px
 import copy
 
 from typing import List
@@ -59,7 +61,7 @@ class PosturalIndexWindow():
         
         # A list of measurements
         measurement_list_view = gui.ListView()
-        measurement_list_view.set_items(self._measurement_manager.get_measurement_names())
+        measurement_list_view.set_items(self._measurement_manager.get_measurement_names()["participant"])
         # measurement_list_view.selected_index = measurement_list_view.selected_index + 1  # initially is -1, so now 1
         measurement_list_view.set_max_visible_items(10)
         measurement_list_view.set_on_selection_changed(self._on_select_measurement)
@@ -303,10 +305,64 @@ def load_wireframe_mesh(triangle_mesh) -> None:
     wireframe_mesh = o3d.geometry.LineSet.create_from_triangle_mesh(triangle_mesh)  
     return wireframe_mesh
 
+def calculate_residual(original: o3d.geometry.TriangleMesh, transformed: o3d.geometry.TriangleMesh) -> List[float]:
+    V1 = np.asarray(original.vertices)
+    V2 = np.asarray(transformed.vertices)
+
+    if len(V1) != len(V2):
+        raise IndexError("The number of elements in the two meshes do not match.")
+
+    M = []
+    for a, b in zip(V1, V2):
+        # print(f"v1: {a}, v2: {b}")
+        M.append(np.linalg.norm(b - a))
+
+    return np.mean(M)
+
 def main():
     # Setup the measurement specific stuff
     root_folder = "C:\source\Postural Index\CBM Data"
     measurement_manager = MeasurementManager()
+
+    # Process all measurements and output graph
+    # Create the normal measurement
+    control_measurements = measurement_manager.get_normal_measurements()
+    control_triangle_meshes = [load_triangle_mesh(m) for m in control_measurements]
+    registered_controls = Registration.register(control_triangle_meshes, "affine")
+    average_mesh = Registration.calculate_average_mesh(registered_controls)
+
+    # Process the measurements
+    M = measurement_manager.get_measurement_names().query("control == False and posture not in ['test', 'debug']")
+    M["cbm"] = M.apply(lambda m: measurement_manager.create_cbm_measurement(m["participant"], m["posture"]), axis = 1)
+    M["mesh"] = M.apply(lambda m: load_triangle_mesh(m["cbm"]), axis = 1)
+    M["reg_rigid"] = M.apply(lambda m: Registration.register([average_mesh] + [m["mesh"]], method = "affine")[1], axis = 1)
+    M["reg_soft"] = M.apply(lambda m: Registration.register([average_mesh] + [m["reg_rigid"]], method = "soft")[1], axis = 1)
+    M["residual"] = M.apply(lambda m: calculate_residual(m["reg_rigid"], m["reg_soft"]), axis = 1)
+    M = M.drop(columns = ["control", "cbm", "mesh", "reg_rigid", "reg_soft"])
+    M = M.pivot(index = "participant", columns = "posture", values = "residual").reset_index()
+    M = M.assign(improved = M["supported"] > M["unsupported"])
+    print(M)
+    M = M.melt(id_vars = ["participant", "improved"], value_vars = ["supported", "unsupported"])
+    print(M)
+
+    # Plot
+    fig = px.scatter(
+        data_frame = M,
+        x = "value",
+        y = "participant",
+        symbol = "posture",
+        color = "improved",
+        color_discrete_map = {
+            False: "red",
+            True: "black"
+        },
+        symbol_map = {
+            "unsupported": "triangle-right",
+            "supported": "triangle-left"
+        }
+    )
+    fig.update_traces(marker_size=10)
+    fig.show()
 
     # Initialise the application
     o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Debug)
@@ -316,9 +372,7 @@ def main():
     window = PosturalIndexWindow("Postural Index", 1920, 1080, measurement_manager)
 
     # Run event loop
-    gui.Application.instance.run()
-
-    # Process all measurements and output graph
+    gui.Application.instance.run()   
 
 if __name__ == "__main__":
     main()
