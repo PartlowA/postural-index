@@ -340,7 +340,7 @@ def main():
     M["residual"] = M.apply(lambda m: calculate_residual(m["reg_rigid"], m["reg_soft"]), axis = 1)
     M = M.drop(columns = ["control", "cbm", "mesh", "reg_rigid", "reg_soft"])
     M = M.pivot(index = "participant", columns = "posture", values = "residual").reset_index()
-    M = M.assign(improved = M["supported"] > M["unsupported"])
+    M = M.assign(improved = M["supported"] < M["unsupported"])
     print(M)
     M = M.melt(id_vars = ["participant", "improved"], value_vars = ["supported", "unsupported"])
     print(M)
@@ -357,8 +357,8 @@ def main():
             True: "black"
         },
         symbol_map = {
-            "unsupported": "triangle-right",
-            "supported": "triangle-left"
+            "unsupported": "triangle-left",
+            "supported": "triangle-right"
         }
     )
     fig.update_traces(marker_size=10)
